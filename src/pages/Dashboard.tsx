@@ -145,7 +145,7 @@ export default function Dashboard() {
     },
   ];
 
-  // Get recent 5 applications
+  // Use the getAll applications response and show first 5 as returned
   const recentApplications = applications?.slice(0, 5) || [];
 
   // Calculate occupancy percentage
@@ -237,30 +237,44 @@ export default function Dashboard() {
                 <p className="text-center text-muted-foreground py-8">لا توجد طلبات حالياً</p>
               ) : (
                 <div className="space-y-4">
-                  {recentApplications.map((app) => (
-                    <div
-                      key={app.applicationId}
-                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-sm font-semibold text-primary">
-                            {app.studentName?.split(' ').map(n => n[0]).join('') || 'N/A'}
+                  {recentApplications.map((app: any) => {
+                    const id = app.applicationId ?? app.applicationid;
+                    const student = app.student ?? app.studentInfo ?? {};
+                    const name = student.fullName ?? app.studentName ?? 'غير محدد';
+                    const faculty = student.faculty ?? app.studentInfo?.faculty ?? 'غير محدد';
+                    const initials = name !== 'غير محدد' ? name.split(' ').map((n: string) => n[0]).join('') : 'N/A';
+                    const submitted = app.submittedAt ?? app.createdAt ?? null;
+                    const status = typeof app.status === 'string'
+                      ? app.status
+                      : app.statusId === 2
+                        ? 'approved'
+                        : app.statusId === 3
+                          ? 'rejected'
+                          : 'pending';
+
+                    return (
+                      <div
+                        key={id ?? name}
+                        className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                            <span className="text-sm font-semibold text-primary">{initials}</span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-foreground">{name}</p>
+                            <p className="text-sm text-muted-foreground">{faculty}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-sm text-muted-foreground hidden sm:block">
+                            {submitted ? new Date(submitted).toLocaleDateString('ar-EG') : ''}
                           </span>
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">{app.studentName || 'غير محدد'}</p>
-                          <p className="text-sm text-muted-foreground">{app.studentInfo?.faculty || 'غير محدد'}</p>
+                          <StatusBadge status={status} />
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm text-muted-foreground hidden sm:block">
-                          {app.submittedAt ? new Date(app.submittedAt).toLocaleDateString('ar-EG') : ''}
-                        </span>
-                        <StatusBadge status={app.status || 'pending'} />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
