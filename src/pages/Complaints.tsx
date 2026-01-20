@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,62 +19,21 @@ import {
   User,
   Calendar,
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { complaintsApi } from '@/lib/api';
 
-// Mock data
-const complaints = [
-  { 
-    id: 1, 
-    title: 'Water heater not working',
-    message: 'The water heater in room A-101 has been broken for 3 days. We have no hot water.',
-    studentName: 'Ahmed Mohamed',
-    room: 'A-101',
-    status: 'unresolved',
-    createdAt: '2024-01-15T10:30:00',
-    priority: 'high'
-  },
-  { 
-    id: 2, 
-    title: 'Noisy neighbors',
-    message: 'Students in room A-103 play loud music until 2 AM every night. It affects our sleep and studies.',
-    studentName: 'Omar Ali',
-    room: 'A-102',
-    status: 'unresolved',
-    createdAt: '2024-01-14T14:20:00',
-    priority: 'medium'
-  },
-  { 
-    id: 3, 
-    title: 'Broken window lock',
-    message: 'The window lock in our room is broken. Security concern as it cannot be properly closed.',
-    studentName: 'Sara Hassan',
-    room: 'C-301',
-    status: 'resolved',
-    createdAt: '2024-01-13T09:15:00',
-    priority: 'high',
-    resolution: 'Maintenance team fixed the window lock on 2024-01-14.'
-  },
-  { 
-    id: 4, 
-    title: 'Kitchen cleanliness',
-    message: 'The shared kitchen on floor 2 is not being cleaned regularly. It is attracting insects.',
-    studentName: 'Fatma Ibrahim',
-    room: 'B-202',
-    status: 'unresolved',
-    createdAt: '2024-01-12T16:45:00',
-    priority: 'medium'
-  },
-  { 
-    id: 5, 
-    title: 'Internet connection issues',
-    message: 'WiFi in Building D has been very slow for the past week. Cannot attend online classes.',
-    studentName: 'Mahmoud Khaled',
-    room: 'D-101',
-    status: 'resolved',
-    createdAt: '2024-01-11T11:00:00',
-    priority: 'high',
-    resolution: 'IT team upgraded the router and increased bandwidth.'
-  },
-];
+
+type UIComplaint = {
+  complaintId: number;
+  title: string;
+  message: string;
+  studentName: string;
+  room: string;
+  status: 'unresolved' | 'resolved';
+  createdAt: string;
+  priority?: 'high' | 'medium' | 'low';
+  resolution?: string;
+};
 
 function PriorityBadge({ priority }: { priority: string }) {
   const styles = {
@@ -113,11 +72,56 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function Complaints() {
-  const [selectedComplaint, setSelectedComplaint] = useState<typeof complaints[0] | null>(null);
+  const [selectedComplaint, setSelectedComplaint] = useState<UIComplaint | null>(null);
   const [resolutionText, setResolutionText] = useState('');
-  
-  const unresolvedComplaints = complaints.filter(c => c.status === 'unresolved');
-  const resolvedComplaints = complaints.filter(c => c.status === 'resolved');
+  const [allComplaints, setAllComplaints] = useState<UIComplaint[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      const res = await complaintsApi.getUnresolved();
+      if (res.error) {
+        console.error('Failed to load complaints', res.error);
+        toast.error('فشل جلب الشكاوى');
+        return;
+      }
+
+      // Support two possible response shapes: direct array or wrapper { success, data, ... }
+      let items: any = res.data;
+      if (!items) {
+        // nothing
+        setAllComplaints([]);
+        return;
+      }
+
+      if ((items as any).data && Array.isArray((items as any).data)) {
+        items = (items as any).data;
+      }
+
+      if (!Array.isArray(items)) {
+        setAllComplaints([]);
+        return;
+      }
+
+      const mapped: UIComplaint[] = items.map((it: any) => ({
+        complaintId: it.complaintId,
+        title: it.title,
+        message: it.message,
+        studentName: it.student?.fullName || '',
+        room: it.room?.roomNumber || '',
+        status: it.isResolved ? 'resolved' : 'unresolved',
+        createdAt: it.createdAt || it.submittedAt || new Date().toISOString(),
+        priority: 'medium',
+        resolution: it.resolutionMessage || '',
+      }));
+
+      setAllComplaints(mapped);
+    };
+
+    void load();
+  }, []);
+
+  const unresolvedComplaints = allComplaints.filter((c) => c.status === 'unresolved');
+  const resolvedComplaints = allComplaints.filter((c) => c.status === 'resolved');
   
   return (
     <DashboardLayout>
@@ -181,7 +185,7 @@ export default function Complaints() {
                   <MessageSquareWarning className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{complaints.length}</p>
+                  <p className="text-2xl font-bold">{allComplaints.length}</p>
                   <p className="text-xs text-muted-foreground">إجمالي الشكاوى</p>
                 </div>
               </div>
@@ -207,7 +211,7 @@ export default function Complaints() {
               ) : (
                 unresolvedComplaints.map((complaint) => (
                   <div 
-                    key={complaint.id}
+                    key={complaint.complaintId}
                     className="p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors cursor-pointer"
                     onClick={() => setSelectedComplaint(complaint)}
                   >
@@ -250,7 +254,7 @@ export default function Complaints() {
               ) : (
                 resolvedComplaints.map((complaint) => (
                   <div 
-                    key={complaint.id}
+                    key={complaint.complaintId}
                     className="p-4 rounded-lg border bg-muted/30 cursor-pointer"
                     onClick={() => setSelectedComplaint(complaint)}
                   >
