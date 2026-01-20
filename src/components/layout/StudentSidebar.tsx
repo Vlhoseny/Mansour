@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useStudentAuth } from "@/contexts/StudentAuthContext";
+import { studentApplicationsApi } from "@/lib/api";
 import {
   LayoutDashboard,
   FileText,
@@ -34,6 +35,16 @@ export function StudentSidebar({ sidebarOpen, setSidebarOpen }: StudentSidebarPr
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useStudentAuth();
+  const [hasApplication, setHasApplication] = useState<boolean | null>(null);
+
+  // Check if student has already submitted an application
+  useEffect(() => {
+    const checkApplications = async () => {
+      const result = await studentApplicationsApi.getMyApplications();
+      setHasApplication(!result.error && result.data && result.data.length > 0);
+    };
+    checkApplications();
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -95,6 +106,11 @@ export function StudentSidebar({ sidebarOpen, setSidebarOpen }: StudentSidebarPr
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
+              // Hide applications link if student already has an application
+              if (item.href === "/student/applications" && hasApplication) {
+                return null;
+              }
+
               const isActive = location.pathname === item.href;
               return (
                 <Link

@@ -115,7 +115,12 @@ export const studentAuthApi = {
   register: (data: RegisterDto) =>
     apiFetch<LoginResponse>('/student/auth/register', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        userName: data.userName,
+        password: data.password,
+        role: "student",
+        studentId: 0,
+      }),
     }),
 
   login: (credentials: LoginDto) =>
@@ -128,6 +133,8 @@ export const studentAuthApi = {
 // Admin Applications API
 export const applicationsApi = {
   getAll: () => apiFetch<ApplicationDetails[]>('/admin/applications'),
+
+  getAccepted: () => apiFetch<ApplicationDetails[]>('/admin/applications/accepted'),
 
   getDetails: (applicationId: number) =>
     apiFetch<ApplicationDetails>(`/admin/applications/${applicationId}/details`),
@@ -395,7 +402,14 @@ export const studentProfileApi = {
 
   getAssignments: () => apiFetch<RoomAssignment[]>('/student/profile/assignments'),
 
-  getDetails: () => apiFetch<StudentDto>('/student/profile/details'),
+  getDetails: async () => {
+    const response = await apiFetch<{ success: boolean; data: { student: StudentDto } }>('/student/profile/details');
+    if (response.error) {
+      return { error: response.error, status: response.status };
+    }
+    // Extract the student from nested structure
+    return { data: response.data?.data?.student || response.data };
+  },
 };
 
 // Family Contact API

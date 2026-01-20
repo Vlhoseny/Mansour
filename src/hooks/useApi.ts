@@ -70,6 +70,17 @@ export const useApplications = () => {
     });
 };
 
+export const useAcceptedApplications = () => {
+    return useQuery({
+        queryKey: ['acceptedApplications'],
+        queryFn: async () => {
+            const response = await applicationsApi.getAccepted();
+            if (response.error) throw new Error(response.error);
+            return response.data || [];
+        },
+    });
+};
+
 export const useApplicationDetails = (applicationId: number) => {
     return useQuery({
         queryKey: queryKeys.applicationDetails(applicationId),

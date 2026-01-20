@@ -168,16 +168,25 @@ export interface LoginResponse {
 }
 
 export interface ApplicationDetails {
-    applicationId: number;
+    applicationId?: number;
+    applicationid?: number; // API returns lowercase
     studentId: number;
-    studentName: string;
-    status: string;
-    submittedAt: string;
-    studentInfo: StudentDto;
-    fatherInfo: FamilyContactDto;
+    studentName?: string;
+    status?: string;
+    submittedAt?: string;
+    student?: StudentDto; // API includes student object
+    studentInfo?: StudentDto;
+    fatherInfo?: FamilyContactDto;
     guardianInfo?: FamilyContactDto;
-    secondaryInfo: SecondaryEducationDto;
-    academicInfo: AcademicEducationDto;
+    secondaryInfo?: SecondaryEducationDto;
+    academicInfo?: AcademicEducationDto;
+    windowId?: number;
+    statusId?: number;
+    formType?: string;
+    createdAt?: string;
+    reviewedAt?: string;
+    reviewedByAdminId?: string;
+    paymentReceiptPath?: string | null;
 }
 
 export interface Complaint {
