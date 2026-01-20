@@ -22,58 +22,41 @@ import {
   Megaphone,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { notificationsApi } from '@/lib/api';
+import type { NotificationDto } from '@/lib/types';
 
-// Mock data
-const recentNotifications = [
-  {
-    id: 1,
-    title: 'Payment Reminder',
-    message: 'Housing fees for the current semester are due by January 30th.',
-    sentAt: '2024-01-15T10:30:00',
-    recipients: 'All Students',
-    type: 'payment'
-  },
-  {
-    id: 2,
-    title: 'Maintenance Notice',
-    message: 'Water supply will be interrupted on January 20th from 8 AM to 12 PM for maintenance.',
-    sentAt: '2024-01-14T14:20:00',
-    recipients: 'Building A, B',
-    type: 'maintenance'
-  },
-  {
-    id: 3,
-    title: 'Holiday Announcement',
-    message: 'The housing office will be closed during the mid-year break from Feb 1-7.',
-    sentAt: '2024-01-13T09:15:00',
-    recipients: 'All Students',
-    type: 'announcement'
-  },
-  {
-    id: 4,
-    title: 'Room Inspection',
-    message: 'Annual room inspection will be conducted next week. Please ensure rooms are clean.',
-    sentAt: '2024-01-12T16:45:00',
-    recipients: 'All Students',
-    type: 'inspection'
-  },
-];
 
 export default function Notifications() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
+  const [recentNotifications, setRecentNotifications] = useState<NotificationDto[]>([]);
   
-  const handleSendNotification = () => {
+  const handleSendNotification = async () => {
     if (!title || !message) {
       toast.error('الرجاء ملء جميع الحقول');
       return;
     }
-    
+
+    const payload = { title, message };
+    const res = await notificationsApi.sendToAll(payload as any);
+
+    if (res.error) {
+      toast.error('فشل إرسال الإشعار');
+      return;
+    }
+
+    // Response contains the created notification
+    const created = res.data as NotificationDto | undefined;
+
     toast.success('تم إرسال الإشعار إلى جميع الطلاب');
     setIsDialogOpen(false);
     setTitle('');
     setMessage('');
+
+    if (created) {
+      setRecentNotifications((prev) => [created, ...prev]);
+    }
   };
   
   const getTypeIcon = (type: string) => {
@@ -90,6 +73,9 @@ export default function Notifications() {
         return <span className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">📝</span>;
     }
   };
+  const readRate = recentNotifications.length
+    ? `${Math.round((recentNotifications.filter((n) => n.isRead).length / recentNotifications.length) * 100)}%`
+    : '-';
   
   return (
     <DashboardLayout>
@@ -178,8 +164,9 @@ export default function Notifications() {
                   <Users className="w-5 h-5 text-success" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">423</p>
-                  <p className="text-xs text-muted-foreground">المستلمون النشطون</p>
+                  <p className="text-2xl font-bold">-</p>
+                  <p className="text-xs text-muted-foreground">المستلمون</p>
+                  <p className="text-xs text-muted-foreground">جميع الطلاب</p>
                 </div>
               </div>
             </CardContent>
@@ -192,7 +179,7 @@ export default function Notifications() {
                   <Mail className="w-5 h-5 text-ocean" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">89%</p>
+                  <p className="text-2xl font-bold">{readRate}</p>
                   <p className="text-xs text-muted-foreground">نسبة القراءة</p>
                 </div>
               </div>
@@ -206,7 +193,7 @@ export default function Notifications() {
                   <Clock className="w-5 h-5 text-gold-dark" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">2س</p>
+                  <p className="text-2xl font-bold">-</p>
                   <p className="text-xs text-muted-foreground">متوسط زمن القراءة</p>
                 </div>
               </div>
@@ -222,11 +209,11 @@ export default function Notifications() {
           <CardContent className="space-y-4">
             {recentNotifications.map((notification) => (
               <div 
-                key={notification.id}
+                key={notification.notificationId}
                 className="p-4 rounded-lg border bg-card hover:bg-muted/30 transition-colors"
               >
                 <div className="flex items-start gap-4">
-                  {getTypeIcon(notification.type)}
+                  {getTypeIcon('announcement')}
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground">{notification.title}</h4>
                     <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
@@ -235,11 +222,11 @@ export default function Notifications() {
                     <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
-                        {new Date(notification.sentAt).toLocaleString()}
+                        {new Date(notification.createdAt).toLocaleString()}
                       </span>
                       <span className="flex items-center gap-1">
                         <Users className="w-3 h-3" />
-                        {notification.recipients}
+                        {'All Students'}
                       </span>
                     </div>
                   </div>
