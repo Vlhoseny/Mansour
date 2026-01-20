@@ -156,61 +156,7 @@ export default function StudentComplaints() {
           </CardContent>
         </Card>
 
-        {/* Complaints List */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5" />
-              شكاواي السابقة
-            </CardTitle>
-            <CardDescription>
-              عرض جميع الشكاوى المقدمة
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {complaints.length > 0 ? (
-              <div className="space-y-4">
-                {complaints.map((complaint) => (
-                  <div
-                    key={complaint.complaintId}
-                    className="p-4 rounded-lg border bg-card"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <p className="font-medium">{complaint.title}</p>
-                          {getStatusBadge(complaint.status)}
-                        </div>
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {complaint.message}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          تاريخ التقديم: {new Date(complaint.submittedAt).toLocaleDateString("ar-EG")}
-                        </p>
-                        {complaint.resolutionMessage && (
-                          <div className="mt-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                            <p className="text-sm font-medium text-green-800 dark:text-green-200">الرد:</p>
-                            <p className="text-sm text-green-600 dark:text-green-400">
-                              {complaint.resolutionMessage}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                <p className="text-muted-foreground">لم تقدم أي شكاوى بعد</p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  يمكنك تقديم شكوى أو اقتراح من خلال الزر أعلاه
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        
       </div>
     </StudentLayout>
   );

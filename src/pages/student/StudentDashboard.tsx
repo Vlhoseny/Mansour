@@ -35,9 +35,30 @@ export default function StudentDashboard() {
           studentApplicationsApi.getMyApplications(),
         ]);
 
-        if (profileRes.data) setProfile(profileRes.data);
-        if (notificationsRes.data && Array.isArray(notificationsRes.data)) setNotifications(notificationsRes.data);
-        if (feesRes.data && Array.isArray(feesRes.data)) setFees(feesRes.data);
+        // The details endpoint may return a wrapper: { success, data: { student, fees, notifications }, message }
+        const detailsPayload: any = profileRes?.data;
+
+        if (detailsPayload) {
+          const inner = detailsPayload.data ?? detailsPayload;
+          if (inner?.student) {
+            setProfile(inner.student as StudentDto);
+            if (Array.isArray(inner.notifications)) setNotifications(inner.notifications as NotificationDto[]);
+            if (Array.isArray(inner.fees)) setFees(inner.fees as FeesDto[]);
+          } else if (inner && inner.fullName) {
+            // already a StudentDto shape
+            setProfile(inner as StudentDto);
+          }
+        }
+
+        // Fallbacks: if details didn't provide notifications/fees, use the dedicated endpoints
+        if ((!notifications || notifications.length === 0) && notificationsRes.data && Array.isArray(notificationsRes.data)) {
+          setNotifications(notificationsRes.data);
+        }
+
+        if ((!fees || fees.length === 0) && feesRes.data && Array.isArray(feesRes.data)) {
+          setFees(feesRes.data);
+        }
+
         if (assignmentsRes.data && Array.isArray(assignmentsRes.data)) setAssignments(assignmentsRes.data);
         if (applicationsRes.data && Array.isArray(applicationsRes.data)) setApplications(applicationsRes.data);
       } catch (error) {
