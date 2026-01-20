@@ -221,3 +221,24 @@ export interface DashboardSummary {
     unresolvedComplaints: number;
     pendingPayments: number;
 }
+
+export interface ReportsSummary {
+    generatedAt: string;
+    totalBuildings: number;
+    totalRooms: number;
+    occupiedRooms: number;
+    acceptedApplications: number;
+    pendingApplications: number;
+    totalStudents: number;
+    residentStudents: number;
+    newStudents: number;
+    bannedStudents: number;
+}
+
+export interface BaseHousingFee {
+    id: number;
+    amount: number;
+    notes?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}

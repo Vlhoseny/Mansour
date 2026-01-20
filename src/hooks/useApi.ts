@@ -8,6 +8,7 @@ import {
     complaintsApi,
     paymentsApi,
     housingFeesApi,
+    baseHousingFeesApi,
     notificationsApi,
     studentApplicationsApi,
     studentComplaintsApi,
@@ -29,6 +30,7 @@ import type {
     SubmitComplaintDto,
     DashboardSummary,
     ApplicationWindowDto,
+    ReportsSummary,
 } from '@/lib/types';
 
 // Query keys for cache management
@@ -45,6 +47,7 @@ export const queryKeys = {
     payments: ['payments'],
     housingFees: ['housingFees'],
     reports: ['reports', 'summary'],
+    reportsSummary: ['reports', 'summary'],
     studentApplications: ['student', 'applications'],
     studentProfile: ['student', 'profile'],
     studentNotifications: ['student', 'notifications'],
@@ -448,6 +451,61 @@ export const useStudentAssignments = () => {
             const response = await studentProfileApi.getAssignments();
             if (response.error) throw new Error(response.error);
             return response.data || [];
+        },
+    });
+};
+
+// Reports Summary
+export const useReportsSummary = () => {
+    return useQuery({
+        queryKey: queryKeys.reportsSummary,
+        queryFn: async (): Promise<ReportsSummary> => {
+            const response = await reportsApi.getSummary();
+            if (response.error) throw new Error(response.error);
+            return response.data as ReportsSummary;
+        },
+    });
+};
+
+// Base Housing Fees
+export const useBaseHousingFees = () => {
+    return useQuery({
+        queryKey: ['baseHousingFees'],
+        queryFn: async () => {
+            const response = await baseHousingFeesApi.getAll();
+            if (response.error) throw new Error(response.error);
+            return response.data || [];
+        },
+    });
+};
+
+export const useSetGlobalFee = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ amount, notes }: { amount: number; notes?: string }) =>
+            baseHousingFeesApi.setGlobal(amount, notes),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['baseHousingFees'] });
+        },
+    });
+};
+
+export const useUpdateGlobalFee = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (newAmount: number) => baseHousingFeesApi.updateGlobal(newAmount),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['baseHousingFees'] });
+        },
+    });
+};
+
+export const useDeleteBaseHousingFee = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (id: number) => baseHousingFeesApi.delete(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['baseHousingFees'] });
         },
     });
 };

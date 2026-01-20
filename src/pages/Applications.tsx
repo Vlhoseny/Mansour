@@ -25,9 +25,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Search, Filter, Eye, CheckCircle, XCircle, FileText } from 'lucide-react';
-import { useApplications } from '@/hooks/useApi';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Search, Filter, Eye, CheckCircle, XCircle, FileText, Loader2, Users, Building2, Home } from 'lucide-react';
+import { useApplications, useAcceptApplication, useRejectApplication, useReportsSummary } from '@/hooks/useApi';
+import { useToast } from '@/hooks/use-toast';
 import type { ApplicationDetails } from '@/lib/types';
+
+// Store the raw application data for reference
+let rawApplicationsMap: Map<number, any> = new Map();
 
 function StatusBadge({ status }: { status: string }) {
   const styles = {
@@ -51,9 +65,15 @@ function StatusBadge({ status }: { status: string }) {
 export default function Applications() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<'date' | 'name' | 'status'>('date');
   const [selectedApplication, setSelectedApplication] = useState<ApplicationDetails | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ type: 'accept' | 'reject'; applicationId: number; studentName: string } | null>(null);
 
   const { data: applications = [], isLoading, error } = useApplications();
+  const { data: summary } = useReportsSummary();
+  const acceptMutation = useAcceptApplication();
+  const rejectMutation = useRejectApplication();
+  const { toast } = useToast();
   const normalizeApplication = (app: any): ApplicationDetails => {
     const studentInfo = app.studentInfo || app.student || app.studentData || app.studentDto || {};
     const fatherInfo = app.fatherInfo || app.father || app.fatherData || undefined;
@@ -61,8 +81,22 @@ export default function Applications() {
     const secondaryInfo = app.secondaryInfo || app.secondary || app.secondaryData || undefined;
     const academicInfo = app.academicInfo || app.academic || app.academicData || undefined;
 
+    // Find the correct applicationId field
+    let appId = app.applicationId ?? app.applicationID ?? app.id;
+
+    // If still not found, check all numeric properties that might be the ID
+    if (!appId || appId === 0) {
+      // Try to find any property that looks like an ID
+      for (const key in app) {
+        if (key.toLowerCase().includes('applicationid') || key.toLowerCase().includes('application_id')) {
+          appId = app[key];
+          break;
+        }
+      }
+    }
+
     return {
-      applicationId: app.applicationId ?? app.applicationID ?? app.id ?? 0,
+      applicationId: appId ?? 0,
       studentId: app.studentId ?? studentInfo.studentId ?? 0,
       studentName: app.studentName || studentInfo.fullName || studentInfo.name || 'غير متوفر',
       status: app.status || app.applicationStatus || 'pending',
@@ -76,9 +110,18 @@ export default function Applications() {
   };
 
   const normalizedApplications = Array.isArray(applications)
-    ? applications.map(normalizeApplication)
+    ? applications.map((app, idx) => {
+      const normalized = normalizeApplication(app);
+      // Store raw data for fallback
+      rawApplicationsMap.set(idx, app);
+      return normalized;
+    })
     : Array.isArray((applications as any)?.data)
-      ? (applications as any).data.map(normalizeApplication)
+      ? (applications as any).data.map((app: any, idx: number) => {
+        const normalized = normalizeApplication(app);
+        rawApplicationsMap.set(idx, app);
+        return normalized;
+      })
       : [];
 
   const filteredApplications = normalizedApplications.filter(app => {
@@ -88,6 +131,105 @@ export default function Applications() {
     const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  // Sort applications
+  const sortedApplications = [...filteredApplications].sort((a, b) => {
+    switch (sortBy) {
+      case 'name':
+        return (a.studentName || '').localeCompare(b.studentName || '');
+      case 'status':
+        const statusOrder = { pending: 0, approved: 1, rejected: 2 };
+        return (statusOrder[a.status as keyof typeof statusOrder] || 0) -
+          (statusOrder[b.status as keyof typeof statusOrder] || 0);
+      case 'date':
+      default:
+        return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
+    }
+  });
+
+  // Handle accept action
+  const handleAccept = async () => {
+    if (!confirmAction || confirmAction.type !== 'accept') return;
+
+    try {
+      // Use the applicationId from the confirmation action
+      const appId = confirmAction.applicationId;
+
+      // If applicationId is 0, try to find it from raw data
+      if (appId === 0) {
+        const rawApp = Array.from(rawApplicationsMap.values()).find(app =>
+          app.studentName === confirmAction.studentName
+        );
+        if (rawApp) {
+          // Try to use any ID field from raw data
+          const actualId = rawApp.applicationId || rawApp.applicationID || rawApp.id || 0;
+          if (actualId) {
+            await acceptMutation.mutateAsync(actualId);
+          } else {
+            throw new Error('Cannot find application ID');
+          }
+        }
+      } else {
+        await acceptMutation.mutateAsync(appId);
+      }
+
+      toast({
+        title: 'تم القبول',
+        description: 'تم قبول الطلب بنجاح',
+      });
+      setConfirmAction(null);
+      setSelectedApplication(null);
+      // Cache will be automatically invalidated by the mutation hook
+    } catch (err) {
+      toast({
+        title: 'خطأ',
+        description: 'فشل قبول الطلب',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Handle reject action
+  const handleReject = async () => {
+    if (!confirmAction || confirmAction.type !== 'reject') return;
+
+    try {
+      // Use the applicationId from the confirmation action
+      const appId = confirmAction.applicationId;
+
+      // If applicationId is 0, try to find it from raw data
+      if (appId === 0) {
+        const rawApp = Array.from(rawApplicationsMap.values()).find(app =>
+          app.studentName === confirmAction.studentName
+        );
+        if (rawApp) {
+          // Try to use any ID field from raw data
+          const actualId = rawApp.applicationId || rawApp.applicationID || rawApp.id || 0;
+          if (actualId) {
+            await rejectMutation.mutateAsync(actualId);
+          } else {
+            throw new Error('Cannot find application ID');
+          }
+        }
+      } else {
+        await rejectMutation.mutateAsync(appId);
+      }
+
+      toast({
+        title: 'تم الرفض',
+        description: 'تم رفض الطلب بنجاح',
+      });
+      setConfirmAction(null);
+      setSelectedApplication(null);
+      // Cache will be automatically invalidated by the mutation hook
+    } catch (err) {
+      toast({
+        title: 'خطأ',
+        description: 'فشل رفض الطلب',
+        variant: 'destructive',
+      });
+    }
+  };
 
   if (error) {
     return (
@@ -124,13 +266,13 @@ export default function Applications() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">
-              {filteredApplications.length} طلب
+              {sortedApplications.length} طلب
             </span>
           </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <Card className="bg-gold/5 border-gold/20">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -139,7 +281,7 @@ export default function Applications() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">
-                    {normalizedApplications.filter(a => a.status === 'pending').length}
+                    {summary?.pendingApplications ?? normalizedApplications.filter(a => a.status === 'pending').length}
                   </p>
                   <p className="text-xs text-muted-foreground">قيد الانتظار</p>
                 </div>
@@ -155,25 +297,9 @@ export default function Applications() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">
-                    {normalizedApplications.filter(a => a.status === 'approved').length}
+                    {summary?.acceptedApplications ?? normalizedApplications.filter(a => a.status === 'approved').length}
                   </p>
                   <p className="text-xs text-muted-foreground">مقبول</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-destructive/5 border-destructive/20">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
-                  <XCircle className="w-5 h-5 text-destructive" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">
-                    {normalizedApplications.filter(a => a.status === 'rejected').length}
-                  </p>
-                  <p className="text-xs text-muted-foreground">مرفوض</p>
                 </div>
               </div>
             </CardContent>
@@ -183,13 +309,45 @@ export default function Applications() {
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-ocean/10 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-ocean" />
+                  <Users className="w-5 h-5 text-ocean" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">
-                    {normalizedApplications.length}
+                    {summary?.totalStudents ?? 0}
                   </p>
-                  <p className="text-xs text-muted-foreground">الإجمالي</p>
+                  <p className="text-xs text-muted-foreground">إجمالي الطلاب</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-primary/5 border-primary/20">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">
+                    {summary?.totalBuildings ?? 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">المباني</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-secondary/5 border-secondary/20">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center">
+                  <Home className="w-5 h-5 text-secondary-foreground" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">
+                    {summary?.occupiedRooms ?? 0}/{summary?.totalRooms ?? 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">الغرف المشغولة</p>
                 </div>
               </div>
             </CardContent>
@@ -221,6 +379,17 @@ export default function Applications() {
                   <SelectItem value="rejected">مرفوض</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <Filter className="w-4 h-4 ml-2" />
+                  <SelectValue placeholder="ترتيب" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">الأحدث أولاً</SelectItem>
+                  <SelectItem value="name">حسب الاسم</SelectItem>
+                  <SelectItem value="status">حسب الحالة</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
@@ -242,7 +411,7 @@ export default function Applications() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredApplications.map((app) => (
+                  {sortedApplications.map((app) => (
                     <TableRow key={app.applicationId}>
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -272,10 +441,22 @@ export default function Applications() {
                           </Button>
                           {app.status === 'pending' && (
                             <>
-                              <Button variant="ghost" size="sm" className="text-success hover:text-success">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-success hover:text-success"
+                                onClick={() => setConfirmAction({ type: 'accept', applicationId: app.applicationId, studentName: app.studentName || 'الطالب' })}
+                                disabled={acceptMutation.isPending || rejectMutation.isPending}
+                              >
                                 <CheckCircle className="w-4 h-4" />
                               </Button>
-                              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => setConfirmAction({ type: 'reject', applicationId: app.applicationId, studentName: app.studentName || 'الطالب' })}
+                                disabled={acceptMutation.isPending || rejectMutation.isPending}
+                              >
                                 <XCircle className="w-4 h-4" />
                               </Button>
                             </>
@@ -346,11 +527,20 @@ export default function Applications() {
 
                 {selectedApplication.status === 'pending' && (
                   <div className="flex gap-3 pt-4 border-t">
-                    <Button className="flex-1 bg-success hover:bg-success/90">
+                    <Button
+                      className="flex-1 bg-success hover:bg-success/90"
+                      onClick={() => setConfirmAction({ type: 'accept', applicationId: selectedApplication.applicationId, studentName: selectedApplication.studentName || 'الطالب' })}
+                      disabled={acceptMutation.isPending || rejectMutation.isPending}
+                    >
                       <CheckCircle className="w-4 h-4 ml-2" />
                       اعتماد الطلب
                     </Button>
-                    <Button variant="destructive" className="flex-1">
+                    <Button
+                      variant="destructive"
+                      className="flex-1"
+                      onClick={() => setConfirmAction({ type: 'reject', applicationId: selectedApplication.applicationId, studentName: selectedApplication.studentName || 'الطالب' })}
+                      disabled={acceptMutation.isPending || rejectMutation.isPending}
+                    >
                       <XCircle className="w-4 h-4 ml-2" />
                       رفض الطلب
                     </Button>
@@ -360,6 +550,64 @@ export default function Applications() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Accept Application Confirmation Dialog */}
+        <AlertDialog open={confirmAction?.type === 'accept'} onOpenChange={(open) => !open && setConfirmAction(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>تأكيد قبول الطلب</AlertDialogTitle>
+              <AlertDialogDescription>
+                هل أنت متأكد من قبول طلب {confirmAction?.studentName}؟
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>إلغاء</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleAccept}
+                disabled={acceptMutation.isPending}
+                className="bg-success text-white hover:bg-success/90"
+              >
+                {acceptMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                    جاري القبول...
+                  </>
+                ) : (
+                  'تأكيد القبول'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Reject Application Confirmation Dialog */}
+        <AlertDialog open={confirmAction?.type === 'reject'} onOpenChange={(open) => !open && setConfirmAction(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>تأكيد رفض الطلب</AlertDialogTitle>
+              <AlertDialogDescription>
+                هل أنت متأكد من رفض طلب {confirmAction?.studentName}؟
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>إلغاء</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleReject}
+                disabled={rejectMutation.isPending}
+                className="bg-destructive text-white hover:bg-destructive/90"
+              >
+                {rejectMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                    جاري الرفض...
+                  </>
+                ) : (
+                  'تأكيد الرفض'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );
