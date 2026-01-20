@@ -88,11 +88,11 @@ export default function Payments() {
     const matchesStatus = statusFilter === 'all' || status === statusFilter;
     return matchesSearch && matchesStatus;
   });
-
+  
   const totalPending = payments
-    .filter((p: any) => (p.status ?? 'pending') === 'pending')
-    .reduce((sum: number, p: any) => sum + (p.feeAmount ?? p.amount ?? 0), 0);
-
+    .filter(p => p.status === 'pending')
+    .reduce((sum, p) => sum + p.amount, 0);
+  
   const totalApproved = payments
     .filter((p: any) => (p.status ?? '') === 'approved')
     .reduce((sum: number, p: any) => sum + (p.feeAmount ?? p.amount ?? 0), 0);
@@ -313,10 +313,37 @@ export default function Payments() {
                               </>
                             )}
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                          <span className="font-medium">{payment.studentName}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">{payment.transactionCode}</TableCell>
+                      <TableCell className="font-semibold">
+                        {payment.amount.toLocaleString()} EGP
+                      </TableCell>
+                      <TableCell>{payment.type}</TableCell>
+                      <TableCell><StatusBadge status={payment.status} /></TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(payment.submittedAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-left">
+                        <div className="flex items-center justify-start gap-2">
+                          <Button variant="ghost" size="sm">
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          {payment.status === 'pending' && (
+                            <>
+                              <Button variant="ghost" size="sm" className="text-success hover:text-success">
+                                <CheckCircle className="w-4 h-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                                <XCircle className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>
