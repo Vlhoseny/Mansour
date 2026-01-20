@@ -29,70 +29,10 @@ import {
   Clock,
   DollarSign,
 } from 'lucide-react';
+import { usePayments, useApprovePayment, useRejectPayment } from '@/hooks/useApi';
 
-// Mock data
-const payments = [
-  { 
-    id: 1, 
-    studentName: 'Ahmed Mohamed Hassan',
-    transactionCode: 'TXN-2024-001234',
-    amount: 5000,
-    type: 'Housing Fee',
-    status: 'pending',
-    submittedAt: '2024-01-15T10:30:00',
-    receiptUrl: '/receipts/001234.pdf'
-  },
-  { 
-    id: 2, 
-    studentName: 'Sara Hassan Ali',
-    transactionCode: 'TXN-2024-001235',
-    amount: 5000,
-    type: 'Housing Fee',
-    status: 'approved',
-    submittedAt: '2024-01-14T14:20:00',
-    receiptUrl: '/receipts/001235.pdf'
-  },
-  { 
-    id: 3, 
-    studentName: 'Omar Ali Ibrahim',
-    transactionCode: 'TXN-2024-001236',
-    amount: 5000,
-    type: 'Housing Fee',
-    status: 'pending',
-    submittedAt: '2024-01-14T09:15:00',
-    receiptUrl: '/receipts/001236.pdf'
-  },
-  { 
-    id: 4, 
-    studentName: 'Fatma Ibrahim Mohamed',
-    transactionCode: 'TXN-2024-001237',
-    amount: 5000,
-    type: 'Housing Fee',
-    status: 'rejected',
-    submittedAt: '2024-01-13T16:45:00',
-    receiptUrl: '/receipts/001237.pdf'
-  },
-  { 
-    id: 5, 
-    studentName: 'Mahmoud Khaled Ahmed',
-    transactionCode: 'TXN-2024-001238',
-    amount: 5000,
-    type: 'Housing Fee',
-    status: 'approved',
-    submittedAt: '2024-01-13T11:00:00',
-    receiptUrl: '/receipts/001238.pdf'
-  },
-  { 
-    id: 6, 
-    studentName: 'Nour El-Din Youssef',
-    transactionCode: 'TXN-2024-001239',
-    amount: 2500,
-    type: 'Late Fee',
-    status: 'pending',
-    submittedAt: '2024-01-12T15:30:00',
-    receiptUrl: '/receipts/001239.pdf'
-  },
-];
+// Use API hook for payments
+const noop = () => {};
 
 function StatusBadge({ status }: { status: string }) {
   const styles = {
@@ -116,22 +56,32 @@ function StatusBadge({ status }: { status: string }) {
 export default function Payments() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  
-  const filteredPayments = payments.filter(payment => {
-    const matchesSearch = 
-      payment.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      payment.transactionCode.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || payment.status === statusFilter;
+  const { data: paymentsResponse, isLoading: paymentsLoading } = usePayments();
+  const approvePayment = useApprovePayment();
+  const rejectPayment = useRejectPayment();
+
+  // Normalize API response which may be wrapped as { success, data: [...] }
+  const _paymentsResp: any = paymentsResponse as any;
+  const payments = Array.isArray(_paymentsResp) ? _paymentsResp : _paymentsResp?.data ?? [];
+
+  const filteredPayments = payments.filter((payment: any) => {
+    const studentName = (payment.studentName ?? '').toString();
+    const transactionCode = (payment.transactionCode ?? '').toString();
+    const matchesSearch =
+      studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      transactionCode.toLowerCase().includes(searchQuery.toLowerCase());
+    const status = payment.status ?? 'pending';
+    const matchesStatus = statusFilter === 'all' || status === statusFilter;
     return matchesSearch && matchesStatus;
   });
-  
+
   const totalPending = payments
-    .filter(p => p.status === 'pending')
-    .reduce((sum, p) => sum + p.amount, 0);
-  
+    .filter((p: any) => (p.status ?? 'pending') === 'pending')
+    .reduce((sum: number, p: any) => sum + (p.feeAmount ?? p.amount ?? 0), 0);
+
   const totalApproved = payments
-    .filter(p => p.status === 'approved')
-    .reduce((sum, p) => sum + p.amount, 0);
+    .filter((p: any) => (p.status ?? '') === 'approved')
+    .reduce((sum: number, p: any) => sum + (p.feeAmount ?? p.amount ?? 0), 0);
   
   return (
     <DashboardLayout>
@@ -256,46 +206,63 @@ export default function Payments() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredPayments.map((payment) => (
-                    <TableRow key={payment.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <span className="text-xs font-semibold text-primary">
-                              {payment.studentName.split(' ').slice(0, 2).map(n => n[0]).join('')}
-                            </span>
+                  {filteredPayments.map((payment: any) => {
+                    const id = payment.feePaymentId ?? payment.id;
+                    const studentName = payment.studentName ?? 'غير محدد';
+                    const tx = payment.transactionCode ?? '';
+                    const amount = payment.feeAmount ?? payment.amount ?? 0;
+                    const submitted = payment.createdAt ?? payment.submittedAt ?? null;
+                    const status = payment.status ?? 'pending';
+
+                    return (
+                      <TableRow key={id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                              <span className="text-xs font-semibold text-primary">
+                                {studentName.split(' ').slice(0, 2).map((n: string) => n[0]).join('')}
+                              </span>
+                            </div>
+                            <span className="font-medium">{studentName}</span>
                           </div>
-                          <span className="font-medium">{payment.studentName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">{payment.transactionCode}</TableCell>
-                      <TableCell className="font-semibold">
-                        {payment.amount.toLocaleString()} EGP
-                      </TableCell>
-                      <TableCell>{payment.type}</TableCell>
-                      <TableCell><StatusBadge status={payment.status} /></TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {new Date(payment.submittedAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-left">
-                        <div className="flex items-center justify-start gap-2">
-                          <Button variant="ghost" size="sm">
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          {payment.status === 'pending' && (
-                            <>
-                              <Button variant="ghost" size="sm" className="text-success hover:text-success">
-                                <CheckCircle className="w-4 h-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                                <XCircle className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">{tx}</TableCell>
+                        <TableCell className="font-semibold">{(amount).toLocaleString()} EGP</TableCell>
+                        <TableCell>{payment.type ?? 'رسوم السكن'}</TableCell>
+                        <TableCell><StatusBadge status={status} /></TableCell>
+                        <TableCell className="text-muted-foreground">{submitted ? new Date(submitted).toLocaleDateString() : ''}</TableCell>
+                        <TableCell className="text-left">
+                          <div className="flex items-center justify-start gap-2">
+                            <Button variant="ghost" size="sm">
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            {status === 'pending' && (
+                              <>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="text-success hover:text-success"
+                                              onClick={() => approvePayment.mutate(id)}
+                                              disabled={Boolean((approvePayment as any).isLoading)}
+                                            >
+                                  <CheckCircle className="w-4 h-4" />
+                                </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="text-destructive hover:text-destructive"
+                                              onClick={() => rejectPayment.mutate(id)}
+                                              disabled={Boolean((rejectPayment as any).isLoading)}
+                                            >
+                                  <XCircle className="w-4 h-4" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
