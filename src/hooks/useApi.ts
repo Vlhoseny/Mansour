@@ -70,6 +70,17 @@ export const useApplications = () => {
     });
 };
 
+export const useAcceptedApplications = () => {
+    return useQuery({
+        queryKey: ['acceptedApplications'],
+        queryFn: async () => {
+            const response = await applicationsApi.getAccepted();
+            if (response.error) throw new Error(response.error);
+            return response.data || [];
+        },
+    });
+};
+
 export const useApplicationDetails = (applicationId: number) => {
     return useQuery({
         queryKey: queryKeys.applicationDetails(applicationId),
@@ -231,6 +242,18 @@ export const useAssignRoom = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.rooms });
             queryClient.invalidateQueries({ queryKey: queryKeys.students });
+        },
+    });
+};
+
+export const useUnassignRoom = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (assignmentId: number) => roomAssignmentsApi.remove(assignmentId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.rooms });
+            queryClient.invalidateQueries({ queryKey: queryKeys.students });
+            queryClient.invalidateQueries({ queryKey: ['acceptedApplications'] });
         },
     });
 };
@@ -462,7 +485,7 @@ export const useReportsSummary = () => {
         queryFn: async (): Promise<ReportsSummary> => {
             const response = await reportsApi.getSummary();
             if (response.error) throw new Error(response.error);
-            return response.data as ReportsSummary;
+            return response.data as unknown as ReportsSummary;
         },
     });
 };

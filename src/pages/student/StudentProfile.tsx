@@ -31,8 +31,9 @@ export default function StudentProfile() {
       ]);
 
       if (profileRes.data) {
-        setProfile(profileRes.data);
-        setEditedProfile(profileRes.data);
+        const studentData = (profileRes.data as any).student || profileRes.data;
+        setProfile(studentData);
+        setEditedProfile(studentData);
       }
       if (assignmentsRes.data) setAssignments(assignmentsRes.data);
     } catch (error) {

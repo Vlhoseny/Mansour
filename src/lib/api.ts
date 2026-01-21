@@ -106,7 +106,12 @@ export const authApi = {
   createAdmin: (data: RegisterDto) =>
     apiFetch('/auth/create-admin', {
       method: 'POST',
-      body: JSON.stringify(data),
+        body: JSON.stringify({
+        userName: data.userName,
+        password: data.password,
+        role: "student",
+        studentId: 0,
+      }),
     }),
 };
 
@@ -128,6 +133,8 @@ export const studentAuthApi = {
 // Admin Applications API
 export const applicationsApi = {
   getAll: () => apiFetch<ApplicationDetails[]>('/admin/applications'),
+  
+  getAccepted: () => apiFetch<ApplicationDetails[]>('/admin/applications/accepted'),
 
   getDetails: (applicationId: number) =>
     apiFetch<ApplicationDetails>(`/admin/applications/${applicationId}/details`),
