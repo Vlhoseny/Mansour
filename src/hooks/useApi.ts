@@ -246,6 +246,18 @@ export const useAssignRoom = () => {
     });
 };
 
+export const useUnassignRoom = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (assignmentId: number) => roomAssignmentsApi.remove(assignmentId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.rooms });
+            queryClient.invalidateQueries({ queryKey: queryKeys.students });
+            queryClient.invalidateQueries({ queryKey: ['acceptedApplications'] });
+        },
+    });
+};
+
 // Students
 export const useStudents = () => {
     return useQuery({
@@ -473,7 +485,7 @@ export const useReportsSummary = () => {
         queryFn: async (): Promise<ReportsSummary> => {
             const response = await reportsApi.getSummary();
             if (response.error) throw new Error(response.error);
-            return response.data as ReportsSummary;
+            return response.data as unknown as ReportsSummary;
         },
     });
 };

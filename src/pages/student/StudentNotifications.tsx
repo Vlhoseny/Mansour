@@ -19,8 +19,24 @@ export default function StudentNotifications() {
   const fetchNotifications = async () => {
     setIsLoading(true);
     try {
-      const response = await studentProfileApi.getNotifications();
-      if (response.data && Array.isArray(response.data)) setNotifications(response.data);
+      // Prefer notifications included in the profile details payload
+      const [detailsRes, notificationsRes] = await Promise.all([
+        studentProfileApi.getDetails(),
+        studentProfileApi.getNotifications(),
+      ]);
+
+      const detailsPayload: any = detailsRes?.data;
+      let fromDetails: any[] | undefined;
+      if (detailsPayload) {
+        const inner = detailsPayload.data ?? detailsPayload;
+        if (Array.isArray(inner?.notifications)) fromDetails = inner.notifications;
+      }
+
+      if (fromDetails && Array.isArray(fromDetails)) {
+        setNotifications(fromDetails as NotificationDto[]);
+      } else if (notificationsRes.data && Array.isArray(notificationsRes.data)) {
+        setNotifications(notificationsRes.data);
+      }
     } catch (error) {
       console.error("Error fetching notifications:", error);
     } finally {

@@ -40,12 +40,14 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useAcceptedApplications, useRooms, useAssignRoom } from '@/hooks/useApi';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { ApplicationDetails } from '@/lib/types';
 
 export default function Students() {
   const [searchQuery, setSearchQuery] = useState('');
   const [facultyFilter, setFacultyFilter] = useState('all');
+  const [assignedFilter, setAssignedFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
   const [selectedStudent, setSelectedStudent] = useState<ApplicationDetails | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
@@ -53,6 +55,7 @@ export default function Students() {
   const { data: applications = [], isLoading, error } = useAcceptedApplications();
   const { data: rooms = [] } = useRooms();
   const assignRoomMutation = useAssignRoom();
+  const queryClient = useQueryClient();
 
   const faculties = [
     ...new Set(
@@ -75,7 +78,17 @@ export default function Students() {
       (student.fullName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (student.nationalId || '').includes(searchQuery);
     const matchesFaculty = facultyFilter === 'all' || student.faculty === facultyFilter;
-    return matchesSearch && matchesFaculty;
+    const isAssigned = (
+      (app as any).student?.roomAssignment != null ||
+      (app as any).roomAssignment != null ||
+      (app.reviewedByAdminId != null && app.reviewedByAdminId !== '')
+    );
+    const matchesAssigned =
+      assignedFilter === 'all' ||
+      (assignedFilter === 'assigned' && isAssigned) ||
+      (assignedFilter === 'unassigned' && !isAssigned);
+
+    return matchesSearch && matchesFaculty && matchesAssigned;
   });
 
   const handleAssignClick = (application: ApplicationDetails) => {
@@ -103,6 +116,9 @@ export default function Students() {
         setIsAssignDialogOpen(false);
         setSelectedStudent(null);
         setSelectedRoomId('');
+          // refresh accepted applications and rooms
+          queryClient.invalidateQueries({ queryKey: ['acceptedApplications'] });
+          queryClient.invalidateQueries({ queryKey: ['rooms'] });
       }
     } catch (error) {
       toast.error('حدث خطأ أثناء تعيين الطالب');
@@ -203,6 +219,17 @@ export default function Students() {
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={assignedFilter} onValueChange={(v) => setAssignedFilter(v as 'all'|'assigned'|'unassigned')}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <Filter className="w-4 h-4 ml-2" />
+                  <SelectValue placeholder="الحالة" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">الكل</SelectItem>
+                  <SelectItem value="assigned">مُعيّن</SelectItem>
+                  <SelectItem value="unassigned">غير مُعيّن</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
@@ -287,14 +314,21 @@ export default function Students() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <Button
-                                size="sm"
-                                onClick={() => handleAssignClick(application)}
-                                className="gap-2"
-                              >
-                                <UserPlus className="w-4 h-4" />
-                                تعيين للغرفة
-                              </Button>
+                              {(
+                                (application as any).student?.roomAssignment != null ||
+                                (application as any).roomAssignment != null
+                              ) ? (
+                                <Badge variant="outline" className="bg-success/10 text-success">مُعيّن</Badge>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleAssignClick(application)}
+                                  className="gap-2"
+                                >
+                                  <UserPlus className="w-4 h-4" />
+                                  تعيين للغرفة
+                                </Button>
+                              )}
                             </TableCell>
                           </TableRow>
                         );

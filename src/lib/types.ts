@@ -168,7 +168,7 @@ export interface LoginResponse {
 }
 
 export interface ApplicationDetails {
-    applicationId?: number;
+   applicationId?: number;
     applicationid?: number; // API returns lowercase
     studentId: number;
     studentName?: string;

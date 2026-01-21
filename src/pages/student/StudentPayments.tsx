@@ -30,8 +30,24 @@ export default function StudentPayments() {
   const fetchFees = async () => {
     setIsLoading(true);
     try {
-      const response = await studentProfileApi.getFees();
-      if (response.data && Array.isArray(response.data)) setFees(response.data);
+      // Prefer fees included in the profile details payload
+      const [detailsRes, feesRes] = await Promise.all([
+        studentProfileApi.getDetails(),
+        studentProfileApi.getFees(),
+      ]);
+
+      const detailsPayload: any = detailsRes?.data;
+      let fromDetails: any[] | undefined;
+      if (detailsPayload) {
+        const inner = detailsPayload.data ?? detailsPayload;
+        if (Array.isArray(inner?.fees)) fromDetails = inner.fees;
+      }
+
+      if (fromDetails && Array.isArray(fromDetails)) {
+        setFees(fromDetails as FeesDto[]);
+      } else if (feesRes.data && Array.isArray(feesRes.data)) {
+        setFees(feesRes.data);
+      }
     } catch (error) {
       console.error("Error fetching fees:", error);
     } finally {
@@ -45,7 +61,13 @@ export default function StudentPayments() {
 
     setIsSubmitting(true);
     try {
-      const response = await studentPaymentsApi.pay(selectedFee.feeId, paymentForm);
+      const payload: FeePaymentDto = {
+        studentId: paymentForm.studentId || selectedFee.studentId || 0,
+        transactionCode: paymentForm.transactionCode,
+        receiptFilePath: paymentForm.receiptFilePath,
+      };
+
+      const response = await studentPaymentsApi.pay(selectedFee.feeId, payload);
       if (response.error) {
         toast.error(response.error);
       } else {
@@ -158,7 +180,17 @@ export default function StudentPayments() {
                         {fee.status?.toLowerCase() !== "paid" && (
                           <Dialog open={showPayDialog && selectedFee?.feeId === fee.feeId} onOpenChange={(open) => {
                             setShowPayDialog(open);
-                            if (open) setSelectedFee(fee);
+                            if (open) {
+                              setSelectedFee(fee);
+                              setPaymentForm({
+                                ...paymentForm,
+                                studentId: fee.studentId ?? paymentForm.studentId ?? 0,
+                                transactionCode: "",
+                                receiptFilePath: "",
+                              });
+                            } else {
+                              setSelectedFee(null);
+                            }
                           }}>
                             <DialogTrigger asChild>
                               <Button size="sm" className="gap-2">

@@ -35,7 +35,8 @@ export function StudentSidebar({ sidebarOpen, setSidebarOpen }: StudentSidebarPr
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useStudentAuth();
-  const [hasApplication, setHasApplication] = useState<boolean | null>(null);
+
+    const [hasApplication, setHasApplication] = useState<boolean | null>(null);
 
   // Check if student has already submitted an application
   useEffect(() => {
@@ -110,7 +111,6 @@ export function StudentSidebar({ sidebarOpen, setSidebarOpen }: StudentSidebarPr
               if (item.href === "/student/applications" && hasApplication) {
                 return null;
               }
-
               const isActive = location.pathname === item.href;
               return (
                 <Link
